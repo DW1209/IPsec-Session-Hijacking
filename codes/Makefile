@@ -1,14 +1,22 @@
-CC = gcc
-CFLAGS = -std=gnu11 -Wall -I include
-DFLAG = -g
+CC     = gcc
+CFLAGS = -std=gnu11 -Wall -I include -g
 
-HIJACK = ipsec_hijack
-DEPS = $(filter-out src/main.c, $(wildcard src/*.c))
+SRC_DIR   = src
+BUILD_DIR = build
 
-all: $(HIJACK)
+C_FILES   = $(wildcard $(SRC_DIR)/*c)
+OBJ_FILES = $(C_FILES:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o)
 
-$(HIJACK): src/main.c $(DEPS)
-	$(CC) $(CFLAGS) $(DFLAG) $^ -o $@
+PROGS = ipsec_hijack
+
+all: $(PROGS)
+
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
+	$(shell [ ! -d $(@D) ] && mkdir -p $(@D)) 
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(PROGS): $(OBJ_FILES)
+	$(CC) $(CFLAGS) $^ -o $@
 
 clean:
-	rm -f $(HIJACK)
+	rm -rf $(BUILD_DIR) $(PROGS)
