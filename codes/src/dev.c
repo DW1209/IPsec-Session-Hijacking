@@ -38,6 +38,10 @@ inline static struct sockaddr_ll init_addr(char *name) {
 
     // [TODO]: Fill up struct sockaddr_ll addr which will be used to bind in func set_sock_fd
 
+    addr.sll_family   = AF_PACKET;              // indicates that using a packet socket
+    addr.sll_protocol = htons(ETH_P_ALL);       // using the Ethernet II protocol
+    addr.sll_ifindex  = if_nametoindex(name);   // set the index of the interface with the given name
+
     if (addr.sll_ifindex == 0) {
         perror("if_nameindex()");
         exit(EXIT_FAILURE);
@@ -62,6 +66,12 @@ inline static int set_sock_fd(struct sockaddr_ll dev) {
 void fmt_frame(Dev *self, Net net, Esp esp, Txp txp) {
     // [TODO]: store the whole frame into self->frame
     // and store the length of the frame into self->framelen
+
+    memcpy(self->frame, &net, sizeof(Net));
+    memcpy(self->frame + sizeof(Net), &esp, sizeof(Esp));
+    memcpy(self->frame + sizeof(Net) + sizeof(Esp), &txp, sizeof(Txp));
+    
+    self->framelen = sizeof(Net) + sizeof(Esp) + sizeof(Txp);
 }
 
 ssize_t tx_frame(Dev *self) {
