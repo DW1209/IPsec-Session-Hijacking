@@ -2,8 +2,8 @@
 
 echo 0 > /proc/sys/net/ipv4/tcp_timestamps
 
-vic_ip='172.17.1.1'
-serv_ip='172.17.100.254'
+vic_ip='192.168.184.134'
+serv_ip='192.168.184.137'
 
 # read -p "input victim's port:" vic_port
 # read -p "input server's port:" serv_port
