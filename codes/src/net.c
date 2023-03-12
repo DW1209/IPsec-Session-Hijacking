@@ -41,8 +41,8 @@ uint8_t *dissect_ip(Net *self, uint8_t *pkt, size_t pkt_len) {
     struct iphdr *ip4hdr = (struct iphdr*) pkt;
 
     self->ip4hdr = *ip4hdr;
-    self->plen   = ntohs(ip4hdr->tot_len) - self->hdrlen;
-    self->pro    = ip4hdr->protocol;
+    self->plen   = pkt_len - self->hdrlen;
+    self->pro    = (Proto) ip4hdr->protocol;
 
     inet_ntop(AF_INET, &(ip4hdr->saddr), self->src_ip, INET_ADDRSTRLEN);
     inet_ntop(AF_INET, &(ip4hdr->daddr), self->dst_ip, INET_ADDRSTRLEN);
@@ -61,8 +61,8 @@ Net *fmt_net_rep(Net *self) {
     self->ip4hdr.frag_off = 0;
     self->ip4hdr.ttl      = 64;
     self->ip4hdr.protocol = self->pro;
-    self->ip4hdr.saddr    = inet_addr(self->x_dst_ip);
-    self->ip4hdr.daddr    = inet_addr(self->x_src_ip);
+    self->ip4hdr.saddr    = inet_addr(self->x_src_ip);
+    self->ip4hdr.daddr    = inet_addr(self->x_dst_ip);
     self->ip4hdr.check    = 0;
     self->ip4hdr.check    = cal_ipv4_cksm(self->ip4hdr);
 

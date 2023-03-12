@@ -54,16 +54,11 @@ uint8_t* dissect_tcp(Net *net, Txp *self, uint8_t *segm, size_t segm_len) {
         return NULL;
     }
 
-    struct tcphdr *tcphdr = &self->thdr;
-
-    if (strcmp(net->src_ip, net->x_src_ip) == 0 && strcmp(net->dst_ip, net->x_dst_ip) == 0 &&
-        tcphdr->th_sport == htons(self->x_src_port) && tcphdr->th_dport == htons(self->x_dst_port)) {
-        self->x_tx_seq = ntohl(tcphdr->th_ack);
-        self->x_tx_ack = ntohl(tcphdr->th_seq + segm_len - (self->hdrlen + net->hdrlen + 14));
-    }
-
-    self->plen = segm_len - self->hdrlen;
-    memcpy(self->pl, segm + self->hdrlen, self->plen);
+    struct tcphdr *tcphdr = (struct tcphdr*) segm;
+    
+    self->thdr     = *tcphdr;
+    self->plen     = segm_len - self->hdrlen;
+    self->pl       = segm + self->hdrlen;
 
     return self->pl;
 }
@@ -71,13 +66,9 @@ uint8_t* dissect_tcp(Net *net, Txp *self, uint8_t *segm, size_t segm_len) {
 Txp* fmt_tcp_rep(Txp *self, struct iphdr iphdr, uint8_t *data, size_t dlen) {
     // [TODO]: Fill up self->tcphdr (prepare to send)
 
-    self->thdr.th_sport = self->x_src_port;
-    self->thdr.th_dport = self->x_dst_port;
     self->thdr.th_seq   = htonl(self->x_tx_seq);
     self->thdr.th_ack   = htonl(self->x_tx_ack);
-    self->thdr.th_off   = self->hdrlen / 4;
-    self->thdr.th_flags = TH_ACK | TH_PUSH;
-    self->thdr.th_win   = htons(BUFSIZE);
+    self->thdr.th_flags = TH_PUSH;
     self->thdr.th_sum   = 0;
     self->thdr.th_sum   = cal_tcp_cksm(iphdr, self->thdr, data, dlen);
 

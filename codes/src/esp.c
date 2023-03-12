@@ -112,20 +112,22 @@ uint8_t *dissect_esp(Esp *self, uint8_t *esp_pkt, size_t esp_len) {
     // [TODO]: Collect information from esp_pkt.
     // Return payload of ESP
 
-    if (esp_len < sizeof(struct esp)) {
+    size_t hdrlen = sizeof(EspHeader);
+    size_t tlrlen = sizeof(EspTrailer);
+
+    if (esp_len < hdrlen + tlrlen) {
         fprintf(stderr, "%s error: the packet length is too short\n", __func__);
         return NULL;
     }
 
-    size_t hdrlen = sizeof(EspHeader);
-    size_t tlrlen = sizeof(EspTrailer);
+    EspHeader  *hdr = (EspHeader*)  esp_pkt;
+    EspTrailer *tlr = (EspTrailer*)(esp_pkt + esp_len - self->authlen - tlrlen);
 
-    memcpy(&self->hdr, esp_pkt, hdrlen);
-    memcpy(&self->tlr, esp_pkt + esp_len - tlrlen, tlrlen);
-
-    self->pl   = esp_pkt + hdrlen;
-    self->plen = esp_len - hdrlen - self->tlr.pad_len - tlrlen;
-    self->pad  = esp_pkt + hdrlen + self->plen;
+    self->hdr.spi     = ntohl(hdr->spi);
+    self->hdr.seq     = ntohl(hdr->seq);
+    self->pl          = esp_pkt + hdrlen;
+    self->plen        = esp_len - (hdrlen + tlrlen + tlr->pad_len + self->authlen);
+    self->pad         = esp_pkt + hdrlen + self->plen;
 
     return self->pl;
 }
