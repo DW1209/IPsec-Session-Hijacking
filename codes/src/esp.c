@@ -137,7 +137,6 @@ Esp *fmt_esp_rep(Esp *self, Proto p) {
 
     self->hdr.spi     = htonl(self->hdr.spi);
     self->hdr.seq     = htonl(self->hdr.seq);
-    self->tlr.pad_len = (uint8_t)(self->set_padpl(self) - self->pad);
     self->tlr.nxt     = (uint8_t) p;
 
     return self;

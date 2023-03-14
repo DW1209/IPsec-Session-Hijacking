@@ -67,11 +67,28 @@ void fmt_frame(Dev *self, Net net, Esp esp, Txp txp) {
     // [TODO]: store the whole frame into self->frame
     // and store the length of the frame into self->framelen
 
-    memcpy(self->frame, &net, sizeof(Net));
-    memcpy(self->frame + sizeof(Net), &esp, sizeof(Esp));
-    memcpy(self->frame + sizeof(Net) + sizeof(Esp), &txp, sizeof(Txp));
-    
-    self->framelen = sizeof(Net) + sizeof(Esp) + sizeof(Txp);
+    self->framelen = 0;
+
+    memcpy(self->frame, self->linkhdr, LINKHDRLEN);
+    self->framelen += LINKHDRLEN;
+
+    memcpy(self->frame + self->framelen, &net.ip4hdr, sizeof(net.ip4hdr));
+    self->framelen += sizeof(net.ip4hdr);
+
+    memcpy(self->frame + self->framelen, &esp.hdr, sizeof(EspHeader));
+    self->framelen += sizeof(EspHeader);
+
+    memcpy(self->frame + self->framelen, esp.pl, esp.plen);
+    self->framelen += esp.plen;
+
+    memcpy(self->frame + self->framelen, esp.pad, esp.tlr.pad_len);
+    self->framelen += esp.tlr.pad_len;
+
+    memcpy(self->frame + self->framelen, &esp.tlr, sizeof(EspTrailer));
+    self->framelen += sizeof(EspTrailer);
+
+    memcpy(self->frame + self->framelen, esp.auth, esp.authlen);
+    self->framelen += esp.authlen;
 }
 
 ssize_t tx_frame(Dev *self) {
