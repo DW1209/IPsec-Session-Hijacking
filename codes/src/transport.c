@@ -16,25 +16,24 @@ uint16_t cal_tcp_cksm(struct iphdr iphdr, struct tcphdr tcphdr, uint8_t *pl, int
     uint16_t *ptr;
 
     uint32_t sum = 0;
-    uint16_t tcplen = htons(sizeof(struct tcphdr) + plen);
+    uint16_t tcplen = sizeof(struct tcphdr) + plen;
 
-    sum += ((iphdr.saddr >> 16) & 0xFFFF) + (iphdr.saddr & 0xFFFF);
-    sum += ((iphdr.daddr >> 16) & 0xFFFF) + (iphdr.daddr & 0xFFFF);
-    sum += htons(iphdr.protocol);
-    sum += tcplen;
+    sum += ((htons(iphdr.saddr) >> 16) & 0xFFFF) + (htons(iphdr.saddr) & 0xFFFF);
+    sum += ((htons(iphdr.daddr) >> 16) & 0xFFFF) + (htons(iphdr.daddr) & 0xFFFF);
+    sum += htons(0x0006 + tcplen);
 
     ptr = (uint16_t*) &tcphdr;
     for (int i = 0; i < sizeof(struct tcphdr) / 2; i++) {
-        sum += *ptr++;
+        sum += htons(ptr[i]);
     }
     
     ptr = (uint16_t*) &pl;
     for (int i = 0; i < plen / 2; i++) {
-        sum += *ptr++;
+        sum += htons(ptr[i]);
     }
 
     if (plen & 1) {
-        sum += (pl[plen - 1] << 8);
+        sum += htons(pl[plen - 1] << 8);
     }
 
     while (sum >> 16) {
@@ -66,11 +65,15 @@ uint8_t* dissect_tcp(Net *net, Txp *self, uint8_t *segm, size_t segm_len) {
 Txp* fmt_tcp_rep(Txp *self, struct iphdr iphdr, uint8_t *data, size_t dlen) {
     // [TODO]: Fill up self->tcphdr (prepare to send)
 
+    self->pl = data;
+
+    self->thdr.th_sport = htons(self->x_src_port);
+    self->thdr.th_dport = htons(self->x_dst_port);
     self->thdr.th_seq   = htonl(self->x_tx_seq);
     self->thdr.th_ack   = htonl(self->x_tx_ack);
-    self->thdr.th_flags = TH_PUSH;
+    self->thdr.th_flags = TH_ACK | TH_PUSH;
     self->thdr.th_sum   = 0;
-    self->thdr.th_sum   = cal_tcp_cksm(iphdr, self->thdr, data, dlen);
+    self->thdr.th_sum   = htons(cal_tcp_cksm(iphdr, self->thdr, data, dlen));
 
     return self;
 }
