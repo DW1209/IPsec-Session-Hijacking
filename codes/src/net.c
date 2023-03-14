@@ -53,12 +53,12 @@ uint8_t *dissect_ip(Net *self, uint8_t *pkt, size_t pkt_len) {
 Net *fmt_net_rep(Net *self) {
     // [TODO]: Fill up self->ip4hdr (prepare to send)
 
-    self->ip4hdr.tot_len  = htons(self->hdrlen + self->plen);
-    self->ip4hdr.id       = htons(ntohs(self->ip4hdr.id) + 0x01);
-    self->ip4hdr.saddr    = inet_addr(self->x_src_ip);
-    self->ip4hdr.daddr    = inet_addr(self->x_dst_ip);
-    self->ip4hdr.check    = 0;
-    self->ip4hdr.check    = htons(cal_ipv4_cksm(self->ip4hdr));
+    self->ip4hdr.tot_len = htons(self->hdrlen + self->plen);
+    self->ip4hdr.id      = htons(ntohs(self->ip4hdr.id) + 0x01);
+    self->ip4hdr.saddr   = inet_addr(self->x_src_ip);
+    self->ip4hdr.daddr   = inet_addr(self->x_dst_ip);
+    self->ip4hdr.check   = 0;
+    self->ip4hdr.check   = htons(cal_ipv4_cksm(self->ip4hdr));
 
     return self;
 }

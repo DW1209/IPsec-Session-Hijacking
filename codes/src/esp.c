@@ -12,6 +12,44 @@
 
 EspHeader esp_hdr_rec;
 
+void key_print(struct sadb_ext *ext, uint8_t *input_key) {
+    unsigned char *p;
+	int bits, tmp = 0;
+    struct sadb_key *key = (struct sadb_key*) ext;
+
+	for (p = (unsigned char*)(key + 1), bits = key->sadb_key_bits; bits > 0; p++, bits -= 8, tmp++) {
+		memcpy(input_key + tmp * key->sadb_key_bits / 8, p, key->sadb_key_bits / 8);
+	}		
+}
+
+
+void print_sadb_msg(struct sadb_msg *msg, int msglen, uint8_t *key) {
+	if (msglen != msg->sadb_msg_len * 8) {
+		return;
+	}
+
+	if (msg->sadb_msg_version != PF_KEY_V2) {
+		return;
+	}
+	
+	if (msglen == sizeof(struct sadb_msg)){
+		return;
+	}
+		
+	msglen -= sizeof(struct sadb_msg);
+	struct sadb_ext *ext = (struct sadb_ext*)(msg + 1);
+
+	while (msglen > 0) {
+        if (ext->sadb_ext_type == SADB_EXT_KEY_AUTH || 
+            ext->sadb_ext_type == SADB_EXT_KEY_ENCRYPT) {
+            key_print(ext, key);
+        }
+
+		msglen -= ext->sadb_ext_len << 3;
+		ext = (struct sadb_ext*)((char*)ext + (ext->sadb_ext_len << 3));
+	}
+}
+
 void get_ik(int type, uint8_t *key) {
     // [TODO]: Dump authentication key from security association database (SADB)
     // (Ref. RFC2367 Section 2.3.4 & 2.4 & 3.1.10)
@@ -28,30 +66,31 @@ void get_ik(int type, uint8_t *key) {
     msg.sadb_msg_pid     = getpid();
     write(s, &msg, sizeof(msg));
 
+    int  msglen = 0;
     bool gotEOF = false;
+    char buffer[BUFSIZE];
 
     while (!gotEOF) {
-        char buffer[BUFSIZE];
-        read(s, &buffer, sizeof(buffer));
+        msglen = read(s, &buffer, sizeof(buffer));
         struct sadb_msg *msgp = (struct sadb_msg*) &buffer;
-
-        uint8_t  sadb_msg_type   = msgp->sadb_msg_type;
-        uint8_t  sadb_msg_satype = msgp->sadb_msg_satype;
-        uint16_t sadb_msg_len    = msgp->sadb_msg_len;
-
-        if (sadb_msg_type == SADB_GET && sadb_msg_satype == type && sadb_msg_len >= sizeof(struct sadb_msg) / 8) {
-            struct sadb_sa *sap = (struct sadb_sa*) msgp;
-            if (sap->sadb_sa_auth == SADB_AALG_SHA1HMAC) {
-                struct sadb_key *keyp = (struct sadb_key*) (((char *) sap) + PFKEY_ALIGN8(sap->sadb_sa_len));
-                for (int i = 0; i < (keyp->sadb_key_bits + 7) / 8; i++) {
-                    key[i] = (uint8_t)(keyp->sadb_key_bits >> (8 * i));
-                }
-            }
-        }
-
+        print_sadb_msg(msgp, msglen, key);
         if (msgp->sadb_msg_seq == 0) {
             gotEOF = true;
         }
+    }
+
+    struct sadb_ext *ext = (struct sadb_ext*) buffer;
+    while ((char*) ext < buffer + msglen) {
+        if (ext->sadb_ext_type == SADB_EXT_KEY_AUTH || 
+            ext->sadb_ext_type == SADB_EXT_KEY_ENCRYPT) {
+            struct sadb_key *key_ext = (struct sadb_key*) ext;
+            if (key_ext->sadb_key_bits > 0) {
+                memcpy(key, (unsigned char*)(key_ext + 1), key_ext->sadb_key_bits / 8);
+                break;
+            }
+        }
+
+        ext = (struct sadb_ext*)((char*) ext + PFKEY_ALIGN8(ext->sadb_ext_len));
     }
 
     close(s);
@@ -64,12 +103,11 @@ void get_esp_key(Esp *self) {
 uint8_t *set_esp_pad(Esp *self) {
     // [TODO]: Fill up self->pad and self->pad_len (Ref. RFC4303 Section 2.4)
 
-    size_t padlen = 4 - ((self->plen + sizeof(self->tlr)) % 4);
-    self->tlr.pad_len = padlen;
+    size_t esplen = sizeof(EspHeader) + self->plen + sizeof(EspTrailer);
+    self->tlr.pad_len = 4 - (esplen % 4);
     
-    self->pad = (uint8_t*) malloc(padlen * sizeof(uint8_t));
-    for (size_t i = 0; i < padlen; i++) {
-        self->pad[i] = (uint8_t)(rand() & 0xFF);
+    for (size_t i = 0; i < self->tlr.pad_len; i++) {
+        self->pad[i] = (uint8_t)(i + 1);
     }
 
     return self->pad;
@@ -93,9 +131,17 @@ uint8_t *set_esp_auth(
 
     // [TODO]: Put everything needed to be authenticated into buff and add up nb
 
-    memcpy(buff, self->pl, self->plen);
-    memcpy(buff + self->plen, self->pad, self->tlr.pad_len);
-    nb += (self->plen + self->tlr.pad_len);
+    memcpy(buff, &self->hdr, sizeof(EspHeader));
+    nb += sizeof(EspHeader);
+
+    memcpy(buff + nb, self->pl, self->plen);
+    nb += self->plen;
+
+    memcpy(buff + nb, self->pad, self->tlr.pad_len);
+    nb += self->tlr.pad_len;
+
+    memcpy(buff + nb, &self->tlr, sizeof(EspTrailer));
+    nb += sizeof(EspTrailer);
 
     ret = hmac(self->esp_key, esp_keylen, buff, nb, self->auth);
 
@@ -128,6 +174,8 @@ uint8_t *dissect_esp(Esp *self, uint8_t *esp_pkt, size_t esp_len) {
     self->pl          = esp_pkt + hdrlen;
     self->plen        = esp_len - (hdrlen + tlrlen + tlr->pad_len + self->authlen);
     self->pad         = esp_pkt + hdrlen + self->plen;
+    self->tlr.pad_len = tlr->pad_len;
+    self->tlr.nxt     = tlr->nxt;
 
     return self->pl;
 }
@@ -135,9 +183,9 @@ uint8_t *dissect_esp(Esp *self, uint8_t *esp_pkt, size_t esp_len) {
 Esp *fmt_esp_rep(Esp *self, Proto p) {
     // [TODO]: Fill up ESP header and trailer (prepare to send)
 
-    self->hdr.spi     = htonl(self->hdr.spi);
-    self->hdr.seq     = htonl(self->hdr.seq);
-    self->tlr.nxt     = (uint8_t) p;
+    self->hdr.spi = htonl(esp_hdr_rec.spi);
+    self->hdr.seq = htonl(esp_hdr_rec.seq + 0x01);
+    self->tlr.nxt = (uint8_t) p;
 
     return self;
 }

@@ -14,26 +14,25 @@ uint16_t cal_tcp_cksm(struct iphdr iphdr, struct tcphdr tcphdr, uint8_t *pl, int
     // [TODO]: Finish TCP checksum calculation
 
     uint16_t *ptr;
-
     uint32_t sum = 0;
-    uint16_t tcplen = sizeof(struct tcphdr) + plen;
 
-    sum += ((htons(iphdr.saddr) >> 16) & 0xFFFF) + (htons(iphdr.saddr) & 0xFFFF);
-    sum += ((htons(iphdr.daddr) >> 16) & 0xFFFF) + (htons(iphdr.daddr) & 0xFFFF);
-    sum += htons(0x0006 + tcplen);
+    sum += (htons(iphdr.saddr) & 0xFFFF) + (htons(iphdr.saddr >> 16) & 0xFFFF);
+    sum += (htons(iphdr.daddr) & 0xFFFF) + (htons(iphdr.daddr >> 16) & 0xFFFF);
+    sum += (uint16_t)(IPPROTO_TCP);
+    sum += (uint16_t)(sizeof(tcphdr) + plen);
 
     ptr = (uint16_t*) &tcphdr;
     for (int i = 0; i < sizeof(struct tcphdr) / 2; i++) {
         sum += htons(ptr[i]);
     }
     
-    ptr = (uint16_t*) &pl;
+    ptr = (uint16_t*) pl;
     for (int i = 0; i < plen / 2; i++) {
         sum += htons(ptr[i]);
     }
 
     if (plen & 1) {
-        sum += htons(pl[plen - 1] << 8);
+        sum += (uint16_t)(pl[plen - 1] << 8);
     }
 
     while (sum >> 16) {
