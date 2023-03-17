@@ -7,12 +7,12 @@
 
 ## Attack Scenario
 - The TCP client has set up IPsec assoications in transport mode for secure communication with a TCP server.
-- The attacker executes a malicious program to hijack the IPSec/TCP sesson.
+- The attacker executes a malicious program to hijack the IPSec/TCP session.
 
 ## Description
-- Execute provided programs to establish the IPSec/TCP sesson.
-- Develop an attacker program on client to hijack the IPSec/TCP sesson.
-- Send specific flags to the server using the attacker program.
+- Execute provided programs to establish the IPSec/TCP session.
+- Develop an attacker program on client to hijack the IPSec/TCP session.
+- Send specific flags (take a look at **pc/answer.txt**) to the server using the attacker program.
 - With the successful hijacking, the server can reply to the flags with correct responses.
 
 ## Execution
@@ -28,7 +28,7 @@ $ sudo ./pc/ipsec_server.sh    # on the server machine
 $ sudo ./pc/ipsec_client.sh    # on the client machine
 ```
 
-Establish the IPSec/TCP sesson.
+Establish the IPSec/TCP session.
 ```bash
 $ cd pc && make
 $ sudo ./tcp_server 1111                                 # on the server machine
